@@ -1,0 +1,74 @@
+---
+title: "DATA 413/613 Vignette"
+author: Shine Chang, Leah Davis, Kalu Minale, Byeolha Kim
+format: html
+editor: visual
+---
+
+## Use Case
+
+Our project will use the Boston Marathon 2023 data csv file to help sports analysts and marathon organizers to understand the trends of different groups (like age, gender, finish time range) to create marathons and make them go as smoothly as possible. The primary users will be sports analysts, marathon organizers, and enthusiasts interested in exploring performance trends or identifying factors affecting race times. Since the Boston marathon is a huge marathon this can be used to identify key trends in marathons. These marathons also help these analysts to gauge who could possible be recruited for the Olympics or other events. We looked at the Boston Marathon 2023 data set to get our main analysis through, but we also looked further into how bib numbers play a factor in marathons.
+
+## Required Packages
+
+The app utilizes the following packages, which can all be installed through the install.packages() function in R Studio's terminal:
+
+-   library(ggplot2)
+-   library(bslib)
+-   library(scales)
+-   library(DT)
+-   library(thematic)
+-   library(shinyWidgets)
+-   library(plotly)
+-   library(sf)
+-   library(caret)
+
+## Data Source and Structure
+
+The data used for this analysis was sourced from
+
+The data set includes detailed information on participant performance and demographics that was collected during the Boston Marathon 2023. The primary data set contains age_group, place_overall, place_gender, place_division, name, team, bib_number, half_time, finish_net, finish_gun, gender, half_time_sec, finish_net_sec, finish_gun_sec, and finish_net_minutes. We looked into historical trends and data analysis to further back up our questions of interests and statistical analysis.
+
+During our data cleaning, we made sure to remove identifiable information to ensure adherence to data ethics and privacy standards. There were no major changes to our data sources, but we continued to clean the data by handling missing values and removing any personally identifiable information.
+
+The data set contains:
+
+\- **Demographic Details:** age, gender, teams of runners.
+
+\- **Race Metrics:** finish times, splits, and other race-related metrics.
+
+\- **Structure:** Description of rows, columns, and key variables in the data set.
+
+The app will guide users through:
+
+1\. Selecting demographic filters (e.g., age, gender, nationality).
+
+2\. Viewing race metrics, including finish times and split data.
+
+3\. Interpreting results through visual and statistical summaries.
+
+## EDA
+
+To explore the demographic influences on race performance, interactive visualizations can provide users with an engaging ways to analyze patterns and trends. A **finish time distribution** can be visualized using histograms or density plots, segmented by demographics such as age, gender, and nationality, to observe how performance varies across these groups. For a deeper understanding of age-related trends, b**ox plots of finish times by age groups** can highlight performance differences and show how time change with age. Additionally, **gender and nationality comparisons** using bar charts or box plots can reveal disparities finish times and pacing between different groups, providing insights into how these factors might impact race outcomes. Finally, **interactive lineplots of split times** can illustrate performance trends across race segments, allowing users to see how runner' speeds varied throughout the race and across different demographic categories. These visualizations not only uncover key insights but also take data exploration intutive and dynamic.
+
+## Statistical Analysis
+
+The Boston Marathon is a pivotal event that attracts both sports analysts and organizers with distinct objectives. For sports analysts, variables such as bib numbers, finish times, and overall placement are key to identifying emerging talent. Analysis shows that bib numbers, assigned based on qualifying times, significantly correlate with performance metrics. Higher bib numbers are linked to slower finish times and lower placements, with the latter showing a stronger statistical relationship. This insight enables analysts to identify promising runners efficiently, potentially leading to future Olympic success, as see with Joan Benoit and Peres Jepchirchir.
+
+For marathon organiziers, the focus is on safety, fair competition, and enhancing the runner experience. Age significantly impacts finish times, with older participants taking up to 90 minutes longer than younger runners. This highlights the need for tailored aid station placement and additional support for older athletes. Additionally, while male runners outnumber female runners across age groups, targeted advertising could help bridge that gap. Split times further guide resource allocation, ensuring timely aid for all participants, particularly those in odler age brackets. Together, these insights help optimize the marathon;s exclusivity and operational success.
+
+## References
+
+Cuk, I., Nikolaidis, P. T., & Knechtle, B. (2020). "Sex differences in pacing during half-marathon and marathon races." \*Research in Sports Medicine
+
+Francis, A. (2019, March 25). Boston Marathon Bib Numbers, Wave assignments released. Canadian Running Magazine. https://runningmagazine.ca/sections/runs-races/boston-waves-released/
+
+Hunter, S. K., Stevens, A. A., Magennis, K., Skelton, K. W., & Fauth, M. (2011). "Is there a sex difference in the age of elite marathon runners?" *Medicine & Science in Sports & Exercise*.
+
+Nesburg, R. A., Mason, A. P., Fitzsimmons, B., & Hunter, S. K. (2023). Sex Differences in Marathon Running: Physiology and Participation. Exercise, Sport, and Movement, 1(3), e00010. https://doi.org/10.1249/ESM.0000000000000010
+
+Nikolaidis, P. T., & Knechtle, B. (2018). "Age and gender differences in pacing during marathon racing." *Journal of Strength and Conditioning Research*.
+
+Rock, B. (2024, August 18). Analyzing the Changing Demographics of Marathon Finishers from 2010 to 2019. Medium; Runner’s Life. https://medium.com/runners-life/analyzing-the-changing-demographics-of-marathon-finishers-from-2010-to-2019-3ce4469dd365
+
+Qualify for the boston marathon. Qualify \| Boston Athletic Association. (n.d.). https://www.baa.org/races/boston-marathon/qualify

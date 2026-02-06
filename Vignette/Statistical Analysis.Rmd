@@ -1,0 +1,428 @@
+---
+title: "Statistical Modeling and Analysis"
+author: "Kalu Minale, Byeolha Kim, Shine Ha Neul Chang, Leah R Davis"
+date: "2024-12-05"
+output:
+  html_document: default
+  pdf_document: default
+editor_options:
+  chunk_output_type: inline
+---
+
+Load in the dataset
+```{r}
+marathon_dataset<-read.csv("../data_raw/boston_marathon_2023.csv")
+
+head(marathon_dataset)
+```
+
+Finish_net has it's time in (Num Hours Num Minutes Num Seconds) We want it in only integers
+```{r}
+library(stringr)
+
+marathon_dataset$finish_net_seconds <- marathon_dataset$finish_net %>%
+  str_match("([0-9]+)H ([0-9]+)M ([0-9]+)S") %>%    
+  as.data.frame() %>%
+  transform(
+    hours = as.numeric(V2),  #
+    minutes = as.numeric(V3),
+    seconds = as.numeric(V4)
+  ) %>%
+  with(hours * 3600 + minutes * 60 + seconds)       
+head(marathon_dataset$finish_net_seconds)
+
+marathon_dataset$finish_net_minutes <- marathon_dataset$finish_net_seconds / 60
+marathon_dataset$finish_net_hours <- marathon_dataset$finish_net_seconds / 3600
+```
+
+```{r}
+is.numeric(marathon_dataset$finish_net_sec)      # Should return TRUE
+is.numeric(marathon_dataset$finish_net_minutes)
+```
+
+
+Remove Rows with Missing or Invalid Values
+```{r}
+marathon_dataset <- marathon_dataset[!is.na(marathon_dataset$finish_net) &
+                                     !is.na(marathon_dataset$finish_net_minutes) &
+                                     !is.na(marathon_dataset$finish_net_sec), ]
+
+is.numeric(marathon_dataset$finish_net)
+is.numeric(marathon_dataset$finish_net_minutes)
+is.numeric(marathon_dataset$finish_net_sec)
+```
+
+
+Linear Regression Model predicting `finish_time` based on `age` and `gender`
+```{r}
+#We want to convert the age groups into categorical variabels because its age groups
+marathon_dataset$age_group <- as.factor(marathon_dataset$age_group)
+
+lm_model_minutes <- lm(finish_net_minutes ~ age_group * gender, data = marathon_dataset)
+
+lm_model_seconds <- lm(finish_net_sec ~ age_group * gender, data = marathon_dataset)
+
+# Summaries of the models
+summary(lm_model_minutes)
+summary(lm_model_seconds)
+```
+Here we'll use the youngest age range as a base of comparison as their age group will most likely boast the most impressive performances. Here is what the model tells us (keep in mind that the age groups are taken from both males and females: 
+
+- Age group 40-44 take 4.73 more minutes to finish than the youngest group
+- Age group 45-49 take 11.03 more minutes to finish     
+- Age group 50-54 take 21.36 more minutes to finish 
+- Age group 55-59 take 28.97 more minutes to finish 
+- Age group 60-64 take 38.7  more minutes to finish    
+- Age group 65-69 take 52.14 more minutes to finish
+- Age group 70-74 take 70.8  more minutes to finish  
+- Age group 75-79 take 93.23 more minutes to finish
+- Age group 80+   take 91.71 more minutes to finish
+
+Box Plot for Model Above 
+```{r}
+library(ggplot2) 
+# Boxplot for finish time in minutes by age group and gender 
+
+ggplot(marathon_dataset, aes(x = age_group, y = finish_net_minutes, fill = gender)) + 
+  geom_boxplot() + 
+  labs( title = "Finish Time by Age Group and Gender", 
+        x = "Age Group", 
+        y = "Finish Time (Minutes)" ) + 
+  theme_minimal()
+```
+
+Bar Chart: Gender Distribution by Age Group
+```{r}
+# Count data
+age_gender_counts <- table(marathon_dataset$age_group, marathon_dataset$gender)
+
+# Bar chart
+ggplot(marathon_dataset, aes(x = age_group, fill = gender)) +
+  geom_bar(position = "dodge") +
+  labs(
+    title = "Gender Distribution Across Age Groups",
+    x = "Age Group",
+    y = "Number of Runners"
+  ) +
+  theme_minimal()
+
+```
+
+Table: Gender Counts by Age Group
+```{r}
+# Table of counts
+gender_age_summary <- as.data.frame(age_gender_counts)
+colnames(gender_age_summary) <- c("Age_Group", "Gender", "Count")
+print(gender_age_summary)
+```
+
+Lets try to see which gender seems to age more gracefully in their running?
+```{r}
+filtered_data <- marathon_dataset[marathon_dataset$age_group %in% c("50-54", "55-59", "60-64", "65-69", "70-74", "75-79", "80+"), ]
+
+#Creating the avg times for older runners
+library(dplyr)
+average_times <- filtered_data %>%
+  group_by(age_group, gender) %>%
+  summarize(average_finish_minutes = mean(finish_net_minutes, na.rm = TRUE), .groups = "drop") %>%
+  arrange(age_group, gender)
+
+print(average_times)
+```
+
+Now lets see if we can get a visual for this?
+```{r}
+#Line plot will serve the best for this specific task
+ggplot(average_times, aes(x = age_group, y = average_finish_minutes, color = gender, group = gender)) +
+  geom_line(size = 1) +
+  geom_point(size = 2) +
+  labs(
+    title = "Average Finish Times by Age Group and Gender",
+    x = "Age Group",
+    y = "Average Finish Time (Minutes)",
+    color = "Gender"
+  ) +
+  theme_minimal()
+```
+
+Here we see some interesting notes:
+-Women seem to have a higher average finish time than men
+-As we go up in age it seems men have lower increases in their time compared to women which could hint at them aging better as runners
+-However, you could also infer that the difference in performance is largest when younger yet as both genders begin to age more, their performances also seem to be similar
+
+To really know for certain lets investigate statistically.
+
+Creating a t-test may be the best for this:
+```{r}
+library(dplyr)
+
+filtered_data <- marathon_dataset %>%
+  filter(age_group %in% c("50-54", "55-59", "60-64", "65-69", "70-74", "75-79", "80+"))
+
+#Performing the t-test
+t_test_results <- filtered_data %>%
+  group_by(age_group) %>%
+  summarize(
+    t_stat = t.test(finish_net_minutes[gender == "M"], finish_net_minutes[gender == "W"], var.equal = FALSE)$statistic,
+    p_value = format(t.test(finish_net_minutes[gender == "M"], finish_net_minutes[gender == "W"], var.equal = FALSE)$p.value, scientific = FALSE)
+  )
+
+print(t_test_results)
+```
+
+Here we see that the p values for ages 50-74 the p-values are less than 0.05 which tells us that there is a statistically significant difference between the finish times of older men versus older women. However, when we go even higher in age (75-80+) the p-value becomes higher than 0.05 which means that the performances and differences in times aren't statistically significant enough to make a difference in average.
+
+This supports what we implied earlier with how it seems that as runners begin to age more, the performance between the two genders start to get closer together. 
+
+Now, lets say someone was given their bib number for the race. The Boston Athletic Association (B.A.A) assigns every year assigns numbers based on qualifying times. If someone were superstitious about the number they were assigned and how well they do: are they reasonable in this belief?
+
+Some runners didn't have a bib_number so we'll need to cut some rows first:
+```{r}
+# Identify rows where bib_number is non-numeric
+problematic_rows <- filtered_data[is.na(as.numeric(as.character(filtered_data$bib_number))), ]
+print(problematic_rows)
+filtered_data <- filtered_data %>%
+  filter(!is.na(as.numeric(as.character(bib_number))))
+```
+
+Now we can proceed by creating a linear regression model:
+```{r}
+#Firstly lets make sure bib_number will be numeric
+filtered_data$bib_number <- as.numeric(as.character(filtered_data$bib_number))
+
+#Then we'll create the model
+lm_model <- lm(finish_net_minutes ~ bib_number, data = filtered_data)
+summary(lm_model)
+```
+
+There are a couple of things to note here:
+-The p-value is <2.2e-16 which tells us that bib number and finish time has a statistically significant relationship here. 
+-R^2 is 0.4774 which means almost half the variance is explained by the bib number.
+-F-statistic is 7524 with the earlier p-value being < 2e-16 means this model is significant
+
+The coefficient being positive for bib numbers does support the idea that higher bib numbers lead to slower finish times. This work with how the system is in place: Runners when signing up for the marathon are to submit to a 12-month qualification period where they need to achieve a qualifying time to be eligible to run the race in April. Those with the fastest times are deemed elite runners and are given a lower bib number as a result. The model here does highlight this system. Bib numbers are VERY important for health reasons and even for teams of sports analysis who only want to analyze the best athletes.
+
+Lets continue this investigation of bib number by comparing it with placement overall in the race:
+```{r}
+# Model of place and bib number
+lm_model <- lm(place_overall ~ bib_number, data = filtered_data)
+summary(lm_model)
+```
+
+Here we see the bib_number coefficient is 0.6904 which tells us that for every single increase in the bib number, the place you will finish in the race increases by 0.6904. Again looking at the p-value tells us that this relationship is significant with the R^2 value accounting for over 60% of the variance in overall placement. 
+
+Lets get a visual to highlight what we've found with bib numbers:
+```{r}
+ggplot(filtered_data, aes(x = bib_number, y = place_overall)) +
+  geom_point(alpha = 0.5) +
+  geom_smooth(method = "lm", color = "blue") +
+  labs(title = "Relationship Between Bib Number and Overall Placement",
+       x = "Bib Number", y = "Overall Placement")
+
+```
+
+Here we can clearly see a positive linear relationship between bib numbers and overall placement of runners. It also tells us that bib number doesn't exactly predict performance as we see noticeable gaps and outliers in the graph particularly towards the middle.
+
+It may be quite challenging to interpret the graph however so we can try to simplify it by taking a sample of racers so it's not as clustered but still enough to draw a conclusion:
+```{r}
+library(dplyr)
+
+# Here we'll randomly sample 10% from each group
+sampled_data <- filtered_data %>%
+  sample_frac(0.1)
+
+# Create the graph with the sample
+library(ggplot2)
+ggplot(sampled_data, aes(x = bib_number, y = place_overall)) +
+  geom_point(alpha = 0.5) +
+  geom_smooth(method = "lm", color = "blue") +
+  labs(title = "Relationship Between Bib Number and Overall Placement (Sampled)",
+       x = "Bib Number", y = "Overall Placement")
+```
+
+Being much easier to interpret we still observe the same results and come to the same conclusion. Lower bib numbers are accociated with those who are more likely to do better in performance than compared to those who have higher bib numbers.
+
+Theres a noticeable gap right before 30,000 which could call for more observation:
+```{r}
+# Filter data for bib numbers near the gap
+gap_data <- filtered_data %>%
+  filter(bib_number > 27000 & bib_number < 31000)
+
+summary(gap_data)
+```
+
+All of the missing bib numbers from the range
+```{r}
+unique_bibs <- unique(filtered_data$bib_number)
+missing_bibs <- setdiff(27000:31000, unique_bibs)
+print(missing_bibs)
+
+```
+
+Lets try to investigate the ages of this gap
+```{r}
+# Filter the dataset for bib numbers in the range 27,000 to 30,000
+bib_range_data <- marathon_dataset %>%
+  filter(bib_number >= 27000 & bib_number <= 30000)
+
+age_group_summary <- bib_range_data %>%
+  group_by(age_group) %>%
+  summarize(Count = n())
+
+print(age_group_summary)
+
+# Lets try to visualize this 
+library(ggplot2)
+ggplot(age_group_summary, aes(x = age_group, y = Count, fill = age_group)) +
+  geom_bar(stat = "identity") +
+  labs(title = "Age Group Distribution for Bib Numbers 27,000-33,000",
+       x = "Age Group", y = "Count") +
+  theme_minimal() +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))
+```
+
+We know that via the Boston Athletic Association that there are about 2,500 charity runners for the event. Many of these charities employ the help of young recreational runners that wouldn't necessarily need to submit a qualifying time.
+
+Finally lets investigate the outliers present before 10,000 and at around 15,000
+```{r}
+# Filter for bib numbers below 10,000 and around 15,000
+outliers <- marathon_dataset %>%
+  filter((bib_number < 10000 & place_overall < 5000) | (bib_number > 14000 & bib_number < 16000))
+
+summary(outliers)
+```
+
+Here it tells us a bit the nature of these outliers:
+- Minimum finish times are 125.9 minutes
+- The average finish time is 214.4 minutes
+- The overall placement being analyzed here is from 1 to 26,616
+
+One thing to note is the scenario that high bib numbers actually perform better than what their number gives them credit for. This should be investigated:
+```{r}
+# Filter for top performers with high bib_numbers
+top_performers_high_bib <- outliers %>%
+  filter(bib_number > 9000 & place_overall < 5000) %>%
+  select(place_overall, bib_number, finish_net_minutes)
+
+print(top_performers_high_bib)
+```
+
+Here we see a support for the outlier explanation. Majority of these high performing racers with low bib numbers are in the 14,000 to 15,0000 range which is exactly where the outliers are present. 
+
+Split times can also be something we look at to see where people will become fatigued in the race. Here we can put aid stations so that the runners may receive water, protein bars, and other forms of aid so they can continue on to the finish:
+```{r}
+# Get the average half time for each age group
+mean_half_time_by_age <- marathon_dataset %>%
+  group_by(age_group) %>%
+  summarise(mean_half_time_sec = mean(half_time_sec, na.rm = TRUE)) %>%
+  arrange(age_group)
+
+print(mean_half_time_by_age)
+```
+
+Majority of the runners seem to have a half way time of 106.88 minutes or 1.78 hours. We can use this to decide where the aid station will go.
+---
+
+## K-Means Clustering: Performance Groups
+### Question: 
+Can we identify distinct groups of runners based on their performance (finish time) and bib numbers, and how do these groups reflect the qualification and participation characteristics of the Boston Marathon?
+
+### Purpose of K-Means in This Context:
+  - To segment runners into meaningful groups (clusters) based on their performance metrics.
+  - To explore relationships between bib numbers (indicative of qualification level) and finish times.
+  - To identify patterns in runner performance, including differences between elite, competitive, and recreational participants.
+
+```{r}
+# Load necessary libraries
+library(ggplot2)
+library(dplyr)
+
+# Check for missing or invalid values in relevant columns
+marathon_dataset$bib_number_numeric <- as.numeric(as.character(marathon_dataset$bib_number))
+
+# Remove rows with invalid values in `bib_number_numeric`
+clean_marathon_data <- marathon_dataset %>%
+  filter(!is.na(bib_number_numeric))
+
+# Prepare data for clustering
+clustering_data <- clean_marathon_data[, c("finish_net_minutes", "bib_number_numeric")]
+
+# Perform K-Means clustering
+set.seed(123)
+kmeans_model <- kmeans(clustering_data, centers = 3, nstart = 25)
+
+# Add cluster assignments to the dataset
+clean_marathon_data$cluster <- as.factor(kmeans_model$cluster)
+
+# Scatter plot of clustering results
+ggplot(clean_marathon_data, aes(x = bib_number_numeric, y = finish_net_minutes, color = cluster)) +
+  geom_point(alpha = 0.6) +
+  labs(
+    title = "K-Means Clustering of Marathon Finishers",
+    x = "Bib Number",
+    y = "Finish Time (Minutes)",
+    color = "Cluster"
+  ) +
+  theme_minimal()
+```
+
+### Key Insights from the K-Means Clustering Plot:
+1. Clear Performance Groups:
+  - Cluster 3 (Blue): Represents elite runners with low bib numbers and fast finish times.
+  - Cluster 1 (Red): Represents competitive but non-elite runners with medium bib numbers and medium finish times.
+  - Cluster 2 (Green): Represents recreational or charity runners with high bib numbers and slower finish times.
+Relationship Between Bib Numbers and Finish Times:
+
+2. Lower bib numbers generally correspond to faster finish times.
+Higher bib numbers are associated with slower times, reflecting the Boston Marathon's qualification system.
+Overlap and Outliers:
+
+3. Some runners in Cluster 2 (Green) perform exceptionally well, overlapping with Cluster 1 (Red) and Cluster 3 (Blue), suggesting high-performing recreational runners.
+
+---
+
+## Principal Component Analysis (PCA)
+### Question:
+ Can we reduce the dimensions of the dataset to identify the most important factors influencing marathon performance, and how are finish times, bib numbers, and placements related?"
+
+### Purpose of PCA*
+Principal Component Analysis (PCA) is used to reduce the dimensionality of the dataset while retaining the most important information. It helps identify patterns and relationships between variables, such as finish times, bib numbers, and placements, by finding new uncorrelated components (principal components) that explain the maximum variance.
+
+```{r}
+# Select relevant numeric variables for PCA
+pca_data <- clean_marathon_data[, c("finish_net_minutes", "place_overall", "bib_number_numeric")]
+
+# Perform PCA
+pca_result <- prcomp(pca_data, scale. = TRUE)
+
+# Summary of PCA results
+summary(pca_result)
+
+# Visualize PCA with a biplot
+biplot(pca_result, scale = 0, main = "PCA Biplot of Marathon Performance")
+
+# Extract and visualize the explained variance
+explained_variance <- pca_result$sdev^2 / sum(pca_result$sdev^2)
+explained_variance_df <- data.frame(
+  Principal_Component = paste0("PC", 1:length(explained_variance)),
+  Variance_Explained = explained_variance
+)
+
+# Plot explained variance
+ggplot(explained_variance_df, aes(x = Principal_Component, y = Variance_Explained)) +
+  geom_bar(stat = "identity", fill = "skyblue") +
+  labs(
+    title = "Explained Variance by Principal Component",
+    x = "Principal Component",
+    y = "Proportion of Variance Explained"
+  ) +
+  theme_minimal()
+```
+
+### Explanation:
+1. Most Variance Explained by PC1: PC1 (90.75% of variance): Dominantly influenced by finish_net_minutes and place_overall, showing a strong relationship between finish times and overall placement.
+2. Bib Number's Unique Role: bib_number_numeric: Contributes less to PC1 but aligns with PC2 (7.82% of variance), indicating it reflects different information (e.g., qualification or grouping).
+3. Dimensionality Reduction: PC1 and PC2 together explain 98.58% of variance, meaning the dataset can be effectively reduced to two dimensions for analysis without losing much information.
+4. Performance Insights:Finish times and placements are the strongest drivers of marathon performance, while bib numbers represent an independent qualification factor.
+
+---
